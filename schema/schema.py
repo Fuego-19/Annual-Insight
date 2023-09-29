@@ -5,7 +5,7 @@ def individual_serial(profDetail) -> dict:
         "phdYear": profDetail["phdYear"],
         "dateOfJoining": profDetail["dateOfJoining"],
         "primaryDept": profDetail["primaryDept"],
-        "BroadRsrchDomain": profDetail["broadRsrchDomain"]
+        "BroadRsrchDomain": profDetail["BroadRsrchDomain"]
     
     }
 
