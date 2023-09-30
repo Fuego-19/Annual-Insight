@@ -6,4 +6,5 @@ client = MongoClient("mongodb+srv://mohit20085:GmyeNLjV5xTNsaZT@clusterip.yeitqc
 
 db = client.annual_insight  
 
-collection_name = db["annual_insight_collection"]
+prof_collection = db["prof_collection"]
+research_collection = db["research_collection"]

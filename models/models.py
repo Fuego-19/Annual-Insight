@@ -2,9 +2,15 @@ from pydantic import BaseModel
 from datetime import datetime
 
 class profDetail(BaseModel):
-    name: str 
+    name: str
     phdYear: str
     dateOfJoining: datetime
     primaryDept: str
     BroadRsrchDomain: str
-    
+
+class researchContributions(BaseModel):
+    startDate: datetime
+    endDate: datetime
+    coAuthors: list
+    title: str
+    DOI: str
