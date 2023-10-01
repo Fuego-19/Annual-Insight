@@ -6,7 +6,7 @@ class profDetail(BaseModel):
     phdYear: str
     dateOfJoining: datetime
     primaryDept: str
-    BroadRsrchDomain: str
+    BroadRsrchDomain: list
 
 class researchContributions(BaseModel):
     startDate: datetime
