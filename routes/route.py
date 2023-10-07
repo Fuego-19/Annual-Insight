@@ -15,7 +15,89 @@ import datetime
 import textwrap
 
 
+from fastapi import APIRouter, HTTPException, Query
+from datetime import datetime
+from models.models import researchContributions
+from bson import ObjectId
+
 router = APIRouter()
+
+@router.get("/publicationsByYear")
+async def get_publications_by_year(year: int = Query(..., title="Publication Year")):
+    try:
+        # Convert the year to a datetime object for comparison
+        year_start = datetime(year, 1, 1)
+        year_end = datetime(year, 12, 31)
+        
+        # Query the database for publications within the specified year
+        publications = research_contributions_list_serial(
+            research_collection.find({
+                "dateOfPublication": {
+                    "$gte": year_start,
+                    "$lte": year_end
+                }
+            })
+        )
+        
+        return publications
+    except Exception as e:
+        print(e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+
+@router.get("/publicationsByCoauthor")
+async def get_publications_by_coauthor(coauthor_name: str = Query(..., title="Co-Author Name")):
+    try:
+        # Query the database for publications where the coAuthors list contains the specified co-author name
+        publications = research_contributions_list_serial(
+            research_collection.find({
+                "coAuthors": {
+                    "$regex": coauthor_name,
+                    "$options": "i"  # "i" makes the search case-insensitive
+                }
+            })
+
+        )
+        
+        return publications
+    except Exception as e:
+        print(e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+
+@router.get("/publications-by-coauthor-and-year")
+async def get_publications_by_coauthor_and_year(
+    year: int = Query(..., title="Publication Year"),
+    coauthor_name: str = Query(..., title="Co-Author Name")
+):
+    try:
+        # Convert the year to a datetime object for comparison
+        year_start = datetime(year, 1, 1)
+        year_end = datetime(year, 12, 31)
+        
+        # Query the database for publications where the coAuthors list contains the specified co-author name
+        # and the publication date is within the specified year
+        publications = research_contributions_list_serial(
+            research_collection.find({
+                "coAuthors": {
+                    "$regex": coauthor_name,
+                    "$options": "i"  # Make the search case-insensitive
+                },
+                "dateOfPublication": {
+                    "$gte": year_start,
+                    "$lte": year_end
+                }
+            })
+        )
+        
+        return publications
+    except Exception as e:
+        print(e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 teal_color = (63/255, 173/255, 168/255)
 
 @router.get("/")
