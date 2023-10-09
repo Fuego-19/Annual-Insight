@@ -52,22 +52,20 @@ async def get_publications_by_coauthor(coauthor_name: str = Query(..., title="Co
         # Query the database for publications where the coAuthors list contains the specified co-author name
         publications = research_contributions_list_serial(
             research_collection.find({
-                "coAuthors": {
+                "coAuthors.name": {
                     "$regex": coauthor_name,
                     "$options": "i"  # "i" makes the search case-insensitive
                 }
             })
-
         )
-        
+
         return publications
     except Exception as e:
         print(e)
         raise HTTPException(status_code=500, detail=str(e))
 
 
-
-@router.get("/publications-by-coauthor-and-year")
+@router.get("/publicationsByCoauthorAndYear")
 async def get_publications_by_coauthor_and_year(
     year: int = Query(..., title="Publication Year"),
     coauthor_name: str = Query(..., title="Co-Author Name")
@@ -81,7 +79,7 @@ async def get_publications_by_coauthor_and_year(
         # and the publication date is within the specified year
         publications = research_contributions_list_serial(
             research_collection.find({
-                "coAuthors": {
+                "coAuthors.name": {
                     "$regex": coauthor_name,
                     "$options": "i"  # Make the search case-insensitive
                 },
@@ -96,8 +94,29 @@ async def get_publications_by_coauthor_and_year(
     except Exception as e:
         print(e)
         raise HTTPException(status_code=500, detail=str(e))
+    
+    
+    
+@router.get("/publications-by-coauthor-role")
+async def get_publications_by_coauthor_role(
+    coauthor_role: str = Query(..., title="Co-Author Role")
+):
+    try:
+        # Query the database for publications where the coAuthors list contains a co-author with the specified role
+        publications = research_contributions_list_serial(
+            research_collection.find({
+                "coAuthors.role": {
+                    "$regex": coauthor_role,
+                    "$options": "i"  # Make the search case-insensitive
+                }
+            })
+        )
 
-
+        return publications
+    except Exception as e:
+        print(e)
+        raise HTTPException(status_code=500, detail=str(e))
+    
 teal_color = (63/255, 173/255, 168/255)
 
 @router.get("/")
@@ -115,6 +134,8 @@ async def add_profDetails(profDetail: profDetail):
 
 @router.post("/addResearchContributions")
 async def add_researchContributions(researchContributions: researchContributions):
+    print("hi")
+    print(researchContributions)
     research_collection.insert_one(dict(researchContributions))
 
 @router.get("/getAllContributions")

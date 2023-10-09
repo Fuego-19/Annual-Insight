@@ -1,7 +1,7 @@
 from pydantic import BaseModel
 from datetime import datetime
 
-from typing import List
+
 class profDetail(BaseModel):
     
     name: str
@@ -19,7 +19,7 @@ class researchContributions(BaseModel):
     dateOfPublication: datetime
     publisherEmail: str
     isPublished: bool
-    coAuthors: List[coAuthor]
+    coAuthors: list[dict]
     title: str
     DOI: str
 
