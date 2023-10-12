@@ -11,7 +11,7 @@ from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 from fastapi.responses import FileResponse  
 from reportlab.lib.colors import cyan
-import datetime
+from datetime import date
 import textwrap
 
 
@@ -167,8 +167,9 @@ async def generate_pdf_endpoint(data: dict):
 
 
 
+
 def get_current_academic_year():
-    today = datetime.date.today()
+    today = date.today()
     current_year = today.year
     if today.month < 8:  # Academic year starts in August
         start_year = current_year - 1
@@ -191,6 +192,30 @@ def changeFontToBlack(c):
     c.setFont("Helvetica", 10)
 
 
+def get_publications_in_date_range(research_contributions, start_date, end_date):
+    start_date = datetime.strptime(start_date, "%Y-%m-%d")
+    end_date = datetime.strptime(end_date, "%Y-%m-%d")
+    
+    publications_in_range = []
+    
+    for contribution in research_contributions:
+        if start_date <= contribution["dateOfPublication"] <= end_date:
+            publications_in_range.append(contribution)
+    
+    return publications_in_range
+
+
+@router.post("/test")
+async def test():
+    try:
+        researchDetails = research_contributions_list_serial(research_collection.find())
+        #print(get_publications_in_date_range(researchDetails,"2022-05-01","2023-04-30"))
+        return get_publications_in_date_range(researchDetails,"2022-05-01","2023-04-30")
+    except Exception as e:
+        print(e)
+        raise HTTPException(status_code=500, detail=str(e))
+    
+    
 def generate_publication_time_period(start_date_time, end_date_time):
     # Convert the input date-time strings to datetime objects
    
@@ -295,9 +320,18 @@ def generate_pdf(prof_detail, research_contributions, pdf_filename):
         
         top_pos = top_pos - 20
 
-        time_period = generate_publication_time_period(research_data["startDate"], research_data["endDate"])
-        changeFontToBlack(c)
-        c.drawString(left_pos, top_pos, time_period)
+        datesList = ["2021-05-01", "2022-05-01","2023-05-01","2024-05-01" ]
+        datesList1 = ["2022-05-01", "2023-05-01","2024-05-01","2025-05-01" ]
+        
+        data = []
+        for i in range(len(datesList)):
+            time_period = get_publications_in_date_range(research_data,datesList[i],datesList1[i])
+            data.append(time_period)
+        
+        
+                
+        # changeFontToBlack(c)
+        # c.drawString(left_pos, top_pos, time_period)
         
         top_pos = top_pos - 20
 
