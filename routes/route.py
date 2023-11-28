@@ -13,14 +13,15 @@ from fastapi.responses import FileResponse
 from reportlab.lib.colors import cyan
 from datetime import date
 import textwrap
-
-
+from typing import Optional
+import json
 from fastapi import APIRouter, HTTPException, Query
 from datetime import datetime
 from models.models import researchContributions
 from bson import ObjectId
-
+from pydantic import BaseModel
 router = APIRouter()
+
 
 @router.get("/publicationsByYear")
 async def get_publications_by_year(year: int = Query(..., title="Publication Year")):
@@ -199,9 +200,10 @@ def get_publications_in_date_range(research_contributions, start_date, end_date)
     publications_in_range = []
     
     for contribution in research_contributions:
+        print("df",contribution["dateOfPublication"])
         if start_date <= contribution["dateOfPublication"] <= end_date:
             publications_in_range.append(contribution)
-    
+
     return publications_in_range
 
 
@@ -215,7 +217,175 @@ async def test():
         print(e)
         raise HTTPException(status_code=500, detail=str(e))
     
+# @router.post("/testing")
+# async def test2(requestData):
+#     try:
+#         print('dkfjdskf')
+#         print(requestData)
+
+#         text= {"text": "hello ji"}
+#         return json.dumps(text)
+#     except Exception as e:
+#         print(e)
+#         raise HTTPException(status_code=500, detail=str(e))
     
+class MyDataModel(BaseModel):
+    key1: str
+
+def extract_authors(input_string):
+    authors = []
+    author_list = input_string.split(" and ")
+
+    for author in author_list:
+        # Split each author into first and last name
+        names = author.split(", ")
+        if len(names) == 2:
+            last_name, first_name = names
+            authors.append(f"{first_name.capitalize()} {last_name.capitalize()}")
+
+    return authors
+
+def format_date(input_dict):
+    month_dict = {
+        'January': '01',
+        'February': '02',
+        'March': '03',
+        'April': '04',
+        'May': '05',
+        'June': '06',
+        'July': '07',
+        'August': '08',
+        'September': '09',
+        'October': '10',
+        'November': '11',
+        'December': '12'
+    }
+
+    year = input_dict.get("year", None)
+    month = input_dict.get("month", None)
+    day = input_dict.get("day", None)
+
+    if year is None:
+        return None  # Year is required, so if it's missing, return None
+
+    if day is not None and month is not None:
+        month_numeric = month_dict.get(month, None)
+        if month_numeric:
+            date_string = f"{day}/{month_numeric}/{year}"
+            return date_string
+    else:
+        return year  # If day is missing, return only the year
+def parseAcm(final_dict):
+
+    bibtex_structure = {
+        "author": [],
+        "title": None,
+        "pages": None,
+        "volume": None,
+        "number": None,
+        "issue": None,
+        "date": None,
+        "publisher": None,
+        "doi": None,
+        "articleno": None,
+        "additionalinfo": None,
+    }
+
+    print("hello", format_date(final_dict))
+    bibtex_structure["author"] = extract_authors(final_dict["author"])
+    bibtex_structure["title"] = final_dict["title"] if "title" in final_dict else None
+    bibtex_structure["pages"] = final_dict["pages"] if "pages" in final_dict else None
+    bibtex_structure["volume"] = final_dict["volume"] if "volume" in final_dict else None
+    bibtex_structure["number"] = final_dict["number"] if "number" in final_dict else None
+    bibtex_structure["issue"] = final_dict["issue"] if "issue" in final_dict else None
+    bibtex_structure["date"] = format_date(final_dict) 
+    bibtex_structure["publisher"] = final_dict["publisher"] if "publisher" in final_dict else None
+    bibtex_structure["doi"] = final_dict["url"] if "url" in final_dict else None
+    bibtex_structure["articleno"] = final_dict["articleno"] if "articleno" in final_dict else None
+
+
+    print(bibtex_structure)
+    return bibtex_structure
+
+def parseIEEE(final_dict):
+
+    bibtex_structure = {
+        "author": [],
+        "title": None,
+        "pages": None,
+        "volume": None,
+        "number": None,
+        "issue": None,
+        "date": None,
+        "publisher": None,
+        "doi": None,
+        "articleno": None,
+        "additionalinfo": None,
+    }
+
+
+    # print("gg",final_dict["author"].replace("\n"," "))
+    bibtex_structure["author"] = extract_authors(final_dict["author"].replace("\n"," "))
+    bibtex_structure["title"] = final_dict["title"] if "title" in final_dict else None
+    bibtex_structure["pages"] = final_dict["pages"] if "pages" in final_dict else None
+    bibtex_structure["volume"] = final_dict["volume"] if "volume" in final_dict else None
+    bibtex_structure["number"] = final_dict["number"] if "number" in final_dict else None
+    bibtex_structure["issue"] = final_dict["issue"] if "issue" in final_dict else None
+    bibtex_structure["date"] = format_date(final_dict) 
+    bibtex_structure["publisher"] = final_dict["journal"] if "journal" in final_dict else None
+    bibtex_structure["doi"] = final_dict["url"] if "url" in final_dict else None
+    bibtex_structure["articleno"] = final_dict["articleno"] if "articleno" in final_dict else None
+
+
+ 
+    return bibtex_structure
+
+@router.post("/get_bibtex")
+async def test2(request_data: MyDataModel):
+    try:
+
+        bibtex_structure = {
+            "author": [],
+            "title": None,
+            "pages": None,
+            "volume": None,
+            "number": None,
+            "issue": None,
+            "date": None,
+            "publisher": None,
+            "doi": None,
+            "articleno": None,
+            "additionalinfo": None,
+        }
+
+        bibtexType = "IEEE"
+   
+
+        final_dict =  json.loads(request_data.key1)
+        print("dict",final_dict)
+        # processed_bibtex = process_bibtex(final_dict)
+
+
+
+
+        # bibtex_structure["Additional Info"] = final_dict["abstract"] if "abstract" in final_dict else None
+        # # Convert BibtexModel to dictionary
+        
+        ans = None 
+        if bibtexType=="ACM":
+            ans = parseAcm(final_dict)
+
+        elif bibtexType=="IEEE":
+            ans = parseIEEE(final_dict)
+
+       
+  
+        return ans
+    except Exception as e:
+        print(e)
+        raise HTTPException(status_code=500, detail=str(e))
+    
+
 def generate_publication_time_period(start_date_time, end_date_time):
     # Convert the input date-time strings to datetime objects
    
@@ -251,16 +421,16 @@ def generate_pdf(prof_detail, research_contributions, pdf_filename):
     copy_top_pos = top_pos
     academic_year = f"{get_current_academic_year()}, {prof_data['name']}"
     c.drawString(left_pos, top_pos, academic_year)
+
     
-    
-    logo_url = "https://i.ibb.co/dmNNpc0/IIITD-Email-Footer.png"
-    response = requests.get(logo_url)
-    if response.status_code == 200:
-        logo_image = Image(BytesIO(response.content))
-        logo_image.drawHeight = 30  # Set the height of the logo image
-        logo_image.drawWidth = 100   # Set the width of the logo image
-        logo_image.wrapOn(c, 100, 90)  # Wrap the image to a specific size
-        logo_image.drawOn(c, 400, 740)  # Position the image to the right of the heading
+    # logo_url = "https://i.ibb.co/dmNNpc0/IIITD-Email-Footer.png"
+    # response = requests.get(logo_url)
+    # if response.status_code == 200:
+    #     logo_image = Image(BytesIO(response.content))
+    #     logo_image.drawHeight = 30  # Set the height of the logo image
+    #     logo_image.drawWidth = 100   # Set the width of the logo image
+    #     logo_image.wrapOn(c, 100, 90)  # Wrap the image to a specific size
+    #     logo_image.drawOn(c, 400, 740)  # Position the image to the right of the heading
 
     
     changeFontToCyan(c)
@@ -285,7 +455,7 @@ def generate_pdf(prof_detail, research_contributions, pdf_filename):
     c.drawString(left_pos, top_pos, primary_dept)
 
     # Broad Research Domain
-   
+    
     c.setFont("Helvetica-Bold", 10)  # Set the font to bold
     research_domain_label = "Broad Research Domain:"
     top_pos = top_pos-15
@@ -294,13 +464,13 @@ def generate_pdf(prof_detail, research_contributions, pdf_filename):
     c.drawString(left_pos+125, top_pos, string_res)
 
     c.setFont("Helvetica", 10)  # Reset the font to regular
-    
     top_pos = top_pos-30
     c.line(left_pos, top_pos, 550, top_pos) #breakline
     
    
     
     if(research_data):
+        print("research_data", research_data)
         changeFontToCyan(c)
         top_pos = top_pos-20
         
@@ -325,17 +495,22 @@ def generate_pdf(prof_detail, research_contributions, pdf_filename):
         
         data = []
         for i in range(len(datesList)):
-            time_period = get_publications_in_date_range(research_data,datesList[i],datesList1[i])
+            time_period = get_publications_in_date_range(research_contributions,datesList[i],datesList1[i])
             data.append(time_period)
         
-        
-                
-        # changeFontToBlack(c)
-        # c.drawString(left_pos, top_pos, time_period)
-        
+        print("data: ", data)
+        publication_time_period = f"(PUBLISHED BETWEEN {datesList[0]} AND {datesList1[1]})"
+        changeFontToBlack(c)
+
+        c.drawString(left_pos, top_pos, publication_time_period)
         top_pos = top_pos - 20
 
-        title =  ", ".join(research_data["coAuthors"]) + ". "+ research_data["title"]
+        # title =  ", ".join(research_data["coAuthors"]) + ". "+ research_data["title"]
+        # Assuming `research_data` is an instance of the `researchContributions` Pydantic model
+        co_author_names = [co_author["name"] for co_author in research_data["coAuthors"]]
+        co_author_names_string = ", ".join(co_author_names)
+        title = f"{co_author_names_string}. {research_data['title']}"
+
         title = textwrap.wrap(title, width=80)  # Adjust width as needed
         print(title)
         # Print each line of the note
