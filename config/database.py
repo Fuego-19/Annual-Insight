@@ -8,3 +8,5 @@ db = client.annual_insight
 
 prof_collection = db["prof_collection"]
 research_collection = db["research_collection"]
+authors_collection = db['authors_collection']
+papers_collection = db['papers_collection']

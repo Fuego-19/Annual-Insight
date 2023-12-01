@@ -1,7 +1,7 @@
 from fastapi import APIRouter
-from models.models import profDetail, researchContributions
-from config.database import prof_collection, research_collection
-from schema.schema import research_contributions_list_serial,list_serial
+from models.models import profDetail, researchContributions,researchPaper,author,paperAuthor
+from config.database import prof_collection, research_collection,authors_collection,papers_collection
+from schema.schema import research_contributions_list_serial,list_serial,individual_serial
 from bson import ObjectId
 from fastapi import HTTPException
 import requests
@@ -20,8 +20,17 @@ from datetime import datetime
 from models.models import researchContributions
 from bson import ObjectId
 from pydantic import BaseModel
+import random
+import string
+
 router = APIRouter()
 
+
+
+def generate_user_id(length=6):
+    characters = string.ascii_letters + string.digits  # Combining letters and digits
+    user_id = ''.join(random.choice(characters) for _ in range(length))
+    return user_id
 
 @router.get("/publicationsByYear")
 async def get_publications_by_year(year: int = Query(..., title="Publication Year")):
@@ -131,7 +140,10 @@ async def get_profDetails():
 
 @router.post("/addProfile")
 async def add_profDetails(profDetail: profDetail):
-    prof_collection.insert_one(dict(profDetail))
+    print(profDetail)
+    temp_dict = dict(profDetail)
+    temp_dict["profId"] = generate_user_id(8)
+    prof_collection.insert_one(temp_dict)
 
 @router.post("/addResearchContributions")
 async def add_researchContributions(researchContributions: researchContributions):
@@ -379,11 +391,105 @@ async def test2(request_data: MyDataModel):
             ans = parseIEEE(final_dict)
 
        
-  
         return ans
     except Exception as e:
         print(e)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# async def get_professor_by_name(name: str = Query(..., title="Professor Name")):
+#     try:
+#         professor = prof_collection.find_one({"name": name})
+
+#         if professor:
+#             serialized_professor = individual_serial(professor)  # Serialize professor document
+#             return serialized_professor
+#         else:
+#             raise HTTPException(status_code=404, detail=f"Professor with name '{name}' not found")
+#     except Exception as e:
+#         print(e)
+#         raise HTTPException(status_code=500, detail=str(e))
+    
+    
+async def get_professor_by_name(name: str = Query(..., title="Professor Name")):
+    try:
+        professor = prof_collection.find_one({"name": name})
+
+        if professor:
+            return professor
+        else:
+            raise HTTPException(status_code=404, detail=f"Professor with name '{name}' not found")
+    except Exception as e:
+        print(e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+async def get_author_by_name(name:str = Query(..., title="Author Name")):
+    try: 
+        author = authors_collection.find_one({"authorName":name})
+        
+        if author:
+            return author
+        else:
+            raise HTTPException(status_code=404, detail=f"Author with name '{name}' not found")
+    except Exception as e:
+        print(e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/submit_form")
+async def submitForm(request_data: MyDataModel):
+    try:
+        final_dict =  json.loads(request_data.key1)
+        paper = researchPaper()
+        paper.title = final_dict["title"]
+        paper.pages = final_dict["pages"]
+        paper.volume = final_dict["volume"]
+        paper.number = final_dict["number"]
+        paper.issue = final_dict["issue"]
+        paper.date = final_dict["date"]
+        paper.publisher = final_dict["publisher"]
+        paper.doi = final_dict["doi"]
+        paper.articleno = final_dict["articleno"]
+        paper.paperId = generate_user_id(8) 
+        
+
+
+        paper.authors = []
+        paper_authors = []
+        
+        for i in final_dict['author']:
+            try:
+                temp = await get_author_by_name(i['name'])
+                temp['papers'].append(paper.paperId)
+                authors_collection.update_one({'authorId': temp['authorId']}, {'$set': {'papers': temp['papers']}})
+                # paper_authors.append(temp)
+                paper.authors.append(temp['authorId'])
+            except Exception as e:
+                new_author = paperAuthor()
+                new_author.authorName = i['name']
+                new_author.designation = i['designation']
+                new_author.papers = []
+                new_author.papers.append(paper.paperId)
+                
+                new_author.authorId = generate_user_id()
+
+                if(new_author.designation == 'IIITD Faculty'):
+                    auth = await get_professor_by_name(new_author.authorName)
+
+                    new_author.authorId =  auth["profId"]
+                    
+                # paper_authors.append(new_author)
+                paper.authors.append(new_author.authorId)
+                authors_collection.insert_one(new_author.__dict__)
+
+            
+                
+        # paper.authors = [author.authorId for author in paper_authors]
+        papers_collection.insert_one(paper.__dict__)
+
+    except Exception as e:
+        print(e)
+        raise HTTPException(status_code=500, detail=str(e))
+
     
 
 def generate_publication_time_period(start_date_time, end_date_time):
