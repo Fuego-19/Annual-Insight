@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 from models.models import profDetail, researchContributions,researchPaper,author,paperAuthor
 from config.database import prof_collection, research_collection,authors_collection,papers_collection
-from schema.schema import research_contributions_list_serial,list_serial,individual_serial
+from schema.schema import research_contributions_list_serial,list_serial,individual_serial,author_list_serial,research_paper_list_serial
 from bson import ObjectId
 from fastapi import HTTPException
 import requests
@@ -26,106 +26,131 @@ import string
 router = APIRouter()
 
 
+@router.get("/papersByAuthorName")
+async def get_papers_by_author_name(author_name: str = Query(..., title="Author Name")):
+    try:
+        # Find the author by their name
+        author = authors_collection.find_one({"authorName": author_name})
+
+        if author:
+            # Retrieve the list of paper IDs associated with the author
+            paper_ids = author.get("papers", [])
+            print("gg5", paper_ids)
+            # Query the papers_collection using the list of paper IDs
+            papers = research_paper_list_serial(
+                papers_collection.find({
+                    "paperId": {"$in": paper_ids}
+                })
+            )
+
+            return papers
+        else:
+            return []  # Return an empty list if the author is not found
+    except Exception as e:
+        print(e)
+        raise HTTPException(status_code=500, detail=str(e))
+@router.get("/papersByAuthorCount")
+async def get_papers_by_author_count(min_author_count: int = Query(..., title="Minimum Author Count")):
+    try:
+        # Retrieve all papers from the collection
+        all_papers = papers_collection.find()
+        
+        # Filter papers based on the number of authors exceeding the specified count
+        filtered_papers = [paper for paper in all_papers if len(paper.get("authors", [])) > min_author_count]
+        
+        if not filtered_papers:
+            raise HTTPException(status_code=404, detail=f"No papers found with more than {min_author_count} authors")
+        
+        # Serialize the filtered papers
+        papers = research_paper_list_serial(filtered_papers)
+        return papers
+    except Exception as e:
+        print(e)
+        raise HTTPException(status_code=500, detail=str(e))
+    
+@router.get("/authorsByPaperCount")
+async def get_authors_by_paper_count(min_paper_count: int = Query(..., title="Minimum Paper Count")):
+    try:
+        # Retrieve all authors from the collection
+        all_authors = authors_collection.find()
+        
+        # Filter authors based on the number of papers exceeding the specified count
+        filtered_authors = [auth for auth in all_authors if len(auth.get("papers", [])) >= min_paper_count]
+        
+        if not filtered_authors:
+            raise HTTPException(status_code=404, detail=f"No authors found with more than {min_paper_count} papers")
+        
+        # Serialize the filtered authors
+        authors = author_list_serial(filtered_authors)
+        return authors
+    except Exception as e:
+        print(e)
+        raise HTTPException(status_code=500, detail=str(e))
+@router.get("/authorsByPartialPaperName")
+async def get_authors_by_partial_paper_name(paper_name: str = Query(..., title="Partial Paper Name")):
+    try:
+        # Construct a regex pattern to match the partial paper name
+        regex_pattern = {"$regex": paper_name, "$options": "i"}  # "i" makes the search case-insensitive
+
+        # Query the papers_collection for papers that match the partial name
+        papers = papers_collection.find({"title": regex_pattern})
+
+        matched_papers = [paper for paper in papers]
+
+        if matched_papers:
+            # Retrieve all unique author IDs associated with the matched papers
+            author_ids = list(set(author_id for paper in matched_papers for author_id in paper.get("authors", [])))
+            print("Author IDs associated with the matched papers:", author_ids)
+            
+            # Query the authors_collection using the list of unique author IDs
+            authors = author_list_serial(
+                authors_collection.find({
+                    "authorId": {"$in": author_ids}
+                })
+            )
+
+            return authors
+        else:
+            return []  # Return an empty list if no matching papers are found
+    except Exception as e:
+        print(e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/papersByAuthorDesignation")
+async def get_papers_by_author_designation(designation: str = Query(..., title="Author Designation")):
+    try:
+        # Find authors with the specified designation
+        authors_with_designation = authors_collection.find({"designation": designation})
+
+        if authors_with_designation:
+            # Extract author IDs of authors with the specified designation
+            author_ids_with_designation = [author["authorId"] for author in authors_with_designation]
+            print("Author IDs with the given designation:", author_ids_with_designation)
+
+            # Query papers_collection to retrieve papers of authors with the specified designation
+            papers = research_paper_list_serial(
+                papers_collection.find({
+                    "authors": {"$in": author_ids_with_designation}
+                })
+            )
+
+            return papers
+        else:
+            return []  # Return an empty list if no authors with the specified designation are found
+    except Exception as e:
+        print(e)
+        raise HTTPException(status_code=500, detail=str(e))
 
 def generate_user_id(length=6):
     characters = string.ascii_letters + string.digits  # Combining letters and digits
     user_id = ''.join(random.choice(characters) for _ in range(length))
     return user_id
 
-@router.get("/publicationsByYear")
-async def get_publications_by_year(year: int = Query(..., title="Publication Year")):
-    try:
-        # Convert the year to a datetime object for comparison
-        year_start = datetime(year, 1, 1)
-        year_end = datetime(year, 12, 31)
-        
-        # Query the database for publications within the specified year
-        publications = research_contributions_list_serial(
-            research_collection.find({
-                "dateOfPublication": {
-                    "$gte": year_start,
-                    "$lte": year_end
-                }
-            })
-        )
-        
-        return publications
-    except Exception as e:
-        print(e)
-        raise HTTPException(status_code=500, detail=str(e))
 
 
 
-@router.get("/publicationsByCoauthor")
-async def get_publications_by_coauthor(coauthor_name: str = Query(..., title="Co-Author Name")):
-    try:
-        # Query the database for publications where the coAuthors list contains the specified co-author name
-        publications = research_contributions_list_serial(
-            research_collection.find({
-                "coAuthors.name": {
-                    "$regex": coauthor_name,
-                    "$options": "i"  # "i" makes the search case-insensitive
-                }
-            })
-        )
-
-        return publications
-    except Exception as e:
-        print(e)
-        raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/publicationsByCoauthorAndYear")
-async def get_publications_by_coauthor_and_year(
-    year: int = Query(..., title="Publication Year"),
-    coauthor_name: str = Query(..., title="Co-Author Name")
-):
-    try:
-        # Convert the year to a datetime object for comparison
-        year_start = datetime(year, 1, 1)
-        year_end = datetime(year, 12, 31)
-        
-        # Query the database for publications where the coAuthors list contains the specified co-author name
-        # and the publication date is within the specified year
-        publications = research_contributions_list_serial(
-            research_collection.find({
-                "coAuthors.name": {
-                    "$regex": coauthor_name,
-                    "$options": "i"  # Make the search case-insensitive
-                },
-                "dateOfPublication": {
-                    "$gte": year_start,
-                    "$lte": year_end
-                }
-            })
-        )
-        
-        return publications
-    except Exception as e:
-        print(e)
-        raise HTTPException(status_code=500, detail=str(e))
-    
-    
-    
-@router.get("/publications-by-coauthor-role")
-async def get_publications_by_coauthor_role(
-    coauthor_role: str = Query(..., title="Co-Author Role")
-):
-    try:
-        # Query the database for publications where the coAuthors list contains a co-author with the specified role
-        publications = research_contributions_list_serial(
-            research_collection.find({
-                "coAuthors.role": {
-                    "$regex": coauthor_role,
-                    "$options": "i"  # Make the search case-insensitive
-                }
-            })
-        )
-
-        return publications
-    except Exception as e:
-        print(e)
-        raise HTTPException(status_code=500, detail=str(e))
     
 teal_color = (63/255, 173/255, 168/255)
 
@@ -156,6 +181,24 @@ async def get_all_contributions():
     try:
         researchDetails = research_contributions_list_serial(research_collection.find())
         return researchDetails
+    except Exception as e:
+        print(e)
+        raise HTTPException(status_code=500, detail=str(e))
+    
+@router.get("/getAllAuthors")
+async def get_all_authors():
+    try:
+        authorDetails = author_list_serial(authors_collection.find())
+        return authorDetails
+    except Exception as e:
+        print(e)
+        raise HTTPException(status_code=500, detail=str(e))
+    
+@router.get("/getAllPapers")
+async def getAllPapers():
+    try:
+        paperDetails = research_paper_list_serial(papers_collection.find())
+        return paperDetails
     except Exception as e:
         print(e)
         raise HTTPException(status_code=500, detail=str(e))
@@ -205,29 +248,9 @@ def changeFontToBlack(c):
     c.setFont("Helvetica", 10)
 
 
-def get_publications_in_date_range(research_contributions, start_date, end_date):
-    start_date = datetime.strptime(start_date, "%Y-%m-%d")
-    end_date = datetime.strptime(end_date, "%Y-%m-%d")
-    
-    publications_in_range = []
-    
-    for contribution in research_contributions:
-        print("df",contribution["dateOfPublication"])
-        if start_date <= contribution["dateOfPublication"] <= end_date:
-            publications_in_range.append(contribution)
-
-    return publications_in_range
 
 
-@router.post("/test")
-async def test():
-    try:
-        researchDetails = research_contributions_list_serial(research_collection.find())
-        #print(get_publications_in_date_range(researchDetails,"2022-05-01","2023-04-30"))
-        return get_publications_in_date_range(researchDetails,"2022-05-01","2023-04-30")
-    except Exception as e:
-        print(e)
-        raise HTTPException(status_code=500, detail=str(e))
+
     
 # @router.post("/testing")
 # async def test2(requestData):
@@ -490,7 +513,22 @@ async def submitForm(request_data: MyDataModel):
         print(e)
         raise HTTPException(status_code=500, detail=str(e))
 
-    
+
+@router.get("/papersByPublisher")
+async def get_papers_by_publisher(publisher_name: str = Query(..., title="Publisher Name")):
+    try:
+        # Query the database for papers by the specified publisher
+        papers = research_paper_list_serial(
+            papers_collection.find({"publisher": publisher_name})
+        )
+        
+        if not papers:
+            raise HTTPException(status_code=404, detail=f"No papers found for publisher '{publisher_name}'")
+        
+        return papers
+    except Exception as e:
+        print(e)
+        raise HTTPException(status_code=500, detail=str(e))    
 
 def generate_publication_time_period(start_date_time, end_date_time):
     # Convert the input date-time strings to datetime objects
@@ -600,9 +638,9 @@ def generate_pdf(prof_detail, research_contributions, pdf_filename):
         datesList1 = ["2022-05-01", "2023-05-01","2024-05-01","2025-05-01" ]
         
         data = []
-        for i in range(len(datesList)):
-            time_period = get_publications_in_date_range(research_contributions,datesList[i],datesList1[i])
-            data.append(time_period)
+        # for i in range(len(datesList)):
+        #     time_period = get_publications_in_date_range(research_contributions,datesList[i],datesList1[i])
+        #     data.append(time_period)
         
         print("data: ", data)
         publication_time_period = f"(PUBLISHED BETWEEN {datesList[0]} AND {datesList1[1]})"
